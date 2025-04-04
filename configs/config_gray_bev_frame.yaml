@@ -1,7 +1,10 @@
 defaults:
   - config
 async_env: true
-wandb: true
+wandb: 
+  use: true
+  project: 'PPOCarla'
+  entity: 'fq_whu-tokyo-tech'
 docker: false
 setup:
   device_learning: 'cuda:0' # 'cuda:0' / 'cpu'

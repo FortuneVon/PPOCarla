@@ -1,4 +1,4 @@
-FROM carlasim/carla:0.9.14
+FROM carlasim/carla:0.9.15
 
 USER root
 
@@ -11,7 +11,7 @@ RUN apt install python3.8 -y
 
 RUN apt-get install python3-pip -y
 RUN python3.8 -m pip install --upgrade pip
-RUN pip install carla==0.9.14
+RUN pip install carla==0.9.15
 
 # We omit this because we need to expose ports manually
 # expose ports

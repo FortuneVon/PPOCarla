@@ -19,10 +19,10 @@ class RolloutRecording:
             reward_coll=[],
             reward_vel_long=[],
             reward_speed=[],
-            reward_speed_dev=[],
+            # reward_speed_dev=[],
             reward_ool=[],
-            reward_steer=[],
-            reward_lat_acc=[],
+            # reward_steer=[],
+            # reward_lat_acc=[],
             reward_red_light=[],
             collision=[],
             ped_collision=[],
@@ -33,17 +33,22 @@ class RolloutRecording:
         )
 
     def append(self, new_episode: bool, reward,
-               reward_coll, reward_vel_long, reward_speed, reward_speed_dev, reward_ool, reward_steer, reward_lat_acc,
+               reward_coll, 
+               reward_vel_long, 
+               reward_speed, 
+               #reward_speed_dev, 
+               reward_ool, 
+               #reward_steer, reward_lat_acc,
                reward_red_light, collision, ped_collision, car_collision, run_red_light, ego_state, distance_travelled):
         if reward is not None:
             self.current_h['reward'].append(reward)
             self.current_h['reward_coll'].append(reward_coll)
             self.current_h['reward_vel_long'].append(reward_vel_long)
             self.current_h['reward_speed'].append(reward_speed)
-            self.current_h['reward_speed_dev'].append(reward_speed_dev)
+            #self.current_h['reward_speed_dev'].append(reward_speed_dev)
             self.current_h['reward_ool'].append(reward_ool)
-            self.current_h['reward_steer'].append(reward_steer)
-            self.current_h['reward_lat_acc'].append(reward_lat_acc)
+            #self.current_h['reward_steer'].append(reward_steer)
+            #self.current_h['reward_lat_acc'].append(reward_lat_acc)
 
         self.current_h['collision'].append(collision)
         self.current_h['ped_collision'].append(ped_collision)
@@ -85,10 +90,10 @@ class Evaluator:
         reward_coll = np.mean([np.mean(h_['reward_coll']) for h in history for h_ in h.h])
         reward_vel_long = np.mean([np.mean(h_['reward_vel_long']) for h in history for h_ in h.h])
         reward_speed = np.mean([np.mean(h_['reward_speed']) for h in history for h_ in h.h])
-        reward_speed_dev = np.mean([np.mean(h_['reward_speed_dev']) for h in history for h_ in h.h])
+        #reward_speed_dev = np.mean([np.mean(h_['reward_speed_dev']) for h in history for h_ in h.h])
         reward_ool = np.mean([np.mean(h_['reward_ool']) for h in history for h_ in h.h])
-        reward_steer = np.mean([np.mean(h_['reward_steer']) for h in history for h_ in h.h])
-        reward_lat_acc = np.mean([np.mean(h_['reward_lat_acc']) for h in history for h_ in h.h])
+        #reward_steer = np.mean([np.mean(h_['reward_steer']) for h in history for h_ in h.h])
+        #reward_lat_acc = np.mean([np.mean(h_['reward_lat_acc']) for h in history for h_ in h.h])
         reward_red_light = np.mean([np.mean(h_['reward_red_light']) for h in history for h_ in h.h])
 
         collision = np.sum([np.sum(h_['collision']) for h in history for h_ in h.h])
@@ -140,10 +145,10 @@ class Evaluator:
             f"{name}/reward_coll": reward_coll,
             f"{name}/reward_vel_long": reward_vel_long,
             f"{name}/reward_speed": reward_speed,
-            f"{name}/reward_speed_dev": reward_speed_dev,
+            #f"{name}/reward_speed_dev": reward_speed_dev,
             f"{name}/reward_ool": reward_ool,
-            f"{name}/reward_steer": reward_steer,
-            f"{name}/reward_lat_acc": reward_lat_acc,
+            #f"{name}/reward_steer": reward_steer,
+            #f"{name}/reward_lat_acc": reward_lat_acc,
             f"{name}/reward_red_light": reward_red_light,
             f"{name}/collision": collision,
             f"{name}/ped_collision": ped_collision,
@@ -201,10 +206,10 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                         infos['final_info'][i]['reward_coll'],
                         infos['final_info'][i]['reward_vel_long'],
                         infos['final_info'][i]['reward_speed'],
-                        infos['final_info'][i]['reward_speed_dev'],
+                        #infos['final_info'][i]['reward_speed_dev'],
                         infos['final_info'][i]['reward_ool'],
-                        infos['final_info'][i]['reward_steer'],
-                        infos['final_info'][i]['reward_lat_acc'],
+                        #infos['final_info'][i]['reward_steer'],
+                        #infos['final_info'][i]['reward_lat_acc'],
                         infos['final_info'][i]['reward_red_light'],
                         infos['final_info'][i]['collision'],
                         infos['final_info'][i]['ped_collision'],
@@ -221,10 +226,10 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                         infos['reward_coll'][i],
                         infos['reward_vel_long'][i],
                         infos['reward_speed'][i],
-                        infos['reward_speed_dev'][i],
+                        #infos['reward_speed_dev'][i],
                         infos['reward_ool'][i],
-                        infos['reward_steer'][i],
-                        infos['reward_lat_acc'][i],
+                        #infos['reward_steer'][i],
+                        #infos['reward_lat_acc'][i],
                         infos['reward_red_light'][i],
                         infos['collision'][i],
                         infos['ped_collision'][i],
@@ -241,10 +246,10 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                     infos['reward_coll'][i],
                     infos['reward_vel_long'][i],
                     infos['reward_speed'][i],
-                    infos['reward_speed_dev'][i],
+                    #infos['reward_speed_dev'][i],
                     infos['reward_ool'][i],
-                    infos['reward_steer'][i],
-                    infos['reward_lat_acc'][i],
+                    #infos['reward_steer'][i],
+                    #infos['reward_lat_acc'][i],
                     infos['reward_red_light'][i],
                     infos['collision'][i],
                     infos['ped_collision'][i],

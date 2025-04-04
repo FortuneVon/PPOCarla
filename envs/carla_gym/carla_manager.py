@@ -72,7 +72,7 @@ class CarlaManager:
                                                                   self.alloc[2], ),
                               # "--net=host",
                               "-v /tmp/.X11-unix:/tmp/.X11-unix:rw",
-                              "carlasim/carla:0.9.14 /bin/bash",
+                              "carlasim/carla:0.9.15 /bin/bash",
                               "./CarlaUE4.sh -RenderOffScreen -nosound",
                               "-ini:[/Script/Engine.RendererSettings]:r.GraphicsAdapter={}".format(
                                   self.params.setup.docker_gpu),

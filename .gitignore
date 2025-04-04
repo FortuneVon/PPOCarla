@@ -118,3 +118,17 @@ venv.bak/
 
 # Carla map files
 map_cache
+
+# 忽略 env 目录下的 LICENSE 文件
+envs/LICENSE
+
+# 忽略 outputs 目录中所有生成的文件和子目录
+outputs/
+
+# 如果你只希望忽略特定日期的目录，也可以写具体路径，例如：
+# outputs/2025-03-30/
+# outputs/2025-04-02/17-36-19/
+# outputs/2025-04-02/17-38-17/
+# outputs/2025-04-02/17-45-27/
+# outputs/2025-04-02/17-50-20/
+# outputs/2025-04-02/18-02-21/

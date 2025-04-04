@@ -1,147 +1,48 @@
-# Efficient Learning of Urban Driving Policies Using Bird's-Eye-View State Representations
+# PPOCarla 项目
 
-[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+## 项目简介
 
-This repository is the official implementation of the [paper](https://ieeexplore.ieee.org/abstract/document/10422281):
+本项目是一个基于 PPO 的自动驾驶系统实验，使用 CARLA 仿真环境。实验的输入采用基于鸟瞰视角的图像信息（Frame Stacking + Gray），并通过简化的奖励函数（仅包含碰撞、超速、车道偏离和红灯违规）训练一个 PPO Agent。项目同时支持多种配置（例如 LSTM、Multi-BEV、RGB 等），本分支专注于简单的 Frame Stacking + Gray 版本。
 
-> **Efficient Learning of Urban Driving Policies Using Bird's-Eye-View State Representations**
->
-> [Trumpp, Raphael](https://scholar.google.com/citations?user=2ttMbLQAAAAJ&hl=en), [Martin Buechner](https://rl.uni-freiburg.de/people/buechner), [Abhinav Valada](https://rl.uni-freiburg.de/people/valada),
-> and [Marco Caccamo](https://scholar.google.com/citations?user=Jbo1MqwAAAAJ&hl=en&oi=ao).
+## 项目架构
 
-The paper was presented at the IEEE International Conference on Intelligent Transportation Systems 2023. If you find
-our work useful, please consider [citing](#reference) it.
+项目主要目录和文件说明如下：
 
-<p align="center">
-  <img src="docs/teaser.png" alt="" width="400" />
-</p>
+- **agents/**  
+  - `agent_base.py`：定义了基础代理类（BaseAgent）和部分扩展类。  
+  - `agent.py`：根据不同的输入模态（如 RGBBEV、GrayBEV 等）构造不同的代理类。
+  - `loss.py`：定义 PPO 的损失函数（PPOLoss）。
+  - `rl_modules.py`：包含 actor（策略网络）和 critic（值网络）的网络结构模块。
 
-## Table of contents
+- **envs/**  
+  - `carla_gym/`：封装了 CARLA 环境为 Gym 接口，包括：
+    - `carla_env.py`：Gym 环境实现，包含 reset 和 step 方法，以及奖励函数（_get_reward）。
+    - `carla_manager.py`：管理 CARLA 服务器的启动、连接、以及演员（车辆、行人等）的管理。
+    - `actors/`：包含演员管理（actor_manager.py）和生成演员蓝图（actors.py）的代码。
+    - `sensors/`：传感器相关代码，包括鸟瞰视图（bird_eye_view_sensor_cv2.py）、RGB相机、激光雷达等。
+    - `vehicle_control/`：包含车辆控制的各个模块，例如横向 PID/Stanley 控制器、纵向控制器、路线规划（route_planner.py）等。
+    - `misc.py`：包含了一些工具函数，如碰撞检测、状态归一化等。
+    - `render.py`：用于渲染鸟瞰图和其他可视化内容。
 
-- [Background](#background)
-- [Install](#install)
-- [Usage](#usage)
-- [Reference](#reference)
-- [License](#license)
+- **configs/**  
+  - 存放 Hydra 配置文件，如 `config_gray_bev_frame.yaml`、`config_multi_bev_frame.yaml` 等，控制实验参数（例如传感器配置、网络结构、奖励函数参数等）。
 
-## Background
 
-Autonomous driving involves complex decision-making in highly interactive environments, requiring thoughtful negotiation
-with other traffic participants.
-While reinforcement learning provides a way to learn such interaction behavior, efficient learning critically depends on
-scalable state representations.
-Contrary to imitation learning methods, high-dimensional state representations still constitute a major bottleneck for
-deep reinforcement learning methods in autonomous driving.
-In this paper, we study the challenges of constructing bird's-eye-view representations for autonomous driving and
-propose a recurrent learning architecture for long-horizon driving.
-Our PPO-based approach, called RecurrDriveNet, is demonstrated on a simulated autonomous driving task in CARLA, where it
-outperforms traditional frame-stacking methods while only requiring one million experiences for efficient training.
-RecurrDriveNet causes less than one infraction per driven kilometer by interacting safely with other road users.
+- **utils/**  
+  - `maker.py`：封装环境、代理、传感器的创建函数。  
+  - `evaluation.py`：评估模块，负责周期性地评估训练好的模型表现，并记录指标到 wandb。  
+  - `compile_return_plot.py`：用于生成训练回报图。
+  - `evaluation.py`：记录评估过程中的各项指标。
 
-### Our Contribution
+- **training.py**  
+  - 主训练脚本，负责采集数据、更新模型、记录日志以及周期性评估。
 
-Current reinforcement learning approaches for learning driving policies face the bottleneck of dimensionality. In this
-paper, we evaluate the efficiency of various bird's-eye-view representations used for describing the state of the
-driving scene. In addition to that, we propose a novel LSTM-based encoding scheme for efficiently encoding the
-bird's-eye-view state representation across the full trajectory of states in a reinforcement learning fashion. This
-alleviates the need for old-fashioned frame-stacking methods and enables further long-horizon driving research.
+- **inference.py**  
+  - 推理脚本，用于加载训练好的模型，在环境中运行，并生成最终的演示结果。
 
-<p align="center">
-  <img src="docs/frame_stacking.png" alt="" width="400" />
-  <img width="40">
-  <img src="docs/lstm.png" alt="" width="400" />
-</p>
+## 注意事项
 
-### Results
-
-Based on our chosen LSTM-based encoding of bird's-eye-view representations, we achieve significantly higher average
-returns while reducing the number of infractions when driving compared to frame-stacking methods. This allows also
-robust stopping at red traffic lights.
-
-#### Training
-
-<p align="center">
-  <img src="docs/avg_return.png" alt="Replicated real-world racetracks." width="400" />
-</p>
-
-#### Driving Behavior
-
-<p align="center">
-  <img src="docs/anim.gif" alt="" width="400" />
-</p>
-
-## Install
-
-- We recommend to use a virtual environment for the installation:
-    ```bash
-    python -m venv learning2drive
-    source learning2drive/bin/activate
-    ```
-- Activate the environment and install the following packages:
-    ```bash
-    pip install torch==2.0
-    pip install torchvision==0.15.1
-    pip install torchrl==0.0.2a
-    pip install tensordict==0.1.0
-    pip install pygame==2.3.0
-    pip install carla==0.9.14
-    pip install numba==0.56.4
-    pip install gymnasium== 0.28.1
-    pip install hydra-core tensorboard torchinfo wandb tqdm pynvml nvsmi scikit-image matplotlib opencv-python
-    ```
-- Most of the code is documented with *automatically* generated docstrings, please use them with caution.
-
-## Usage
-
-### Training and Evaluation
-
-- Training of the PPO agent can be done by running the following command using a specific configuration file:
-  ```bash
-  python training.py -cn <config_name>
-  ```
-  where `<config_name>` is the name of the configuration file located in the `configs` directory, e.g, the command
-  ```bash
-  python training.py -cn config_multi_bev_lstm
-  ```
-  trains the agent using the configuration file `configs/config_multi_bev_lstm.yaml`.
-
-- Trained agents must be placed in the `trained_agents` directory. The trained agent can be evaluated by running the
-  following command:
-
-  ```bash
-  python inference.py
-  ``` 
-
-- The configuration files provide option to define GPU placement, training parameters, and the environment setup. The
-  configuration files are located in the `configs` directory.
-
-- You must **not** start Carla instances manually. The training script will start the Carla server automatically, but
-  `$CARLA_ROOT` must be set to the root directory of the Carla installation, e.g.,
-  `export CARLA_ROOT=/opt/carla-simulator/`. Sometimes the connection to the Carla server cannot be established. In this
-  case, please restart the script and make sure that no other Carla instances are running in the background. If the
-  problem persists, consider reducing the number of parallel environments. The command `pkill -ef carla` can be useful
-  to do so.
-
-### Versioning
-
-The results of the paper where created using the listed [packages](#Install) with python3.8.10 and Carla0.9.14.
-Other versions of the packages might not be compatible with the provided code.
-
-## Reference
-
-If you find our work useful, please consider citing our paper:
-
-```bibtex 
-@inproceedings{trumpp2023efficient,
-  author={Trumpp, Raphael and Büchner, Martin and Valada, Abhinav and Caccamo, Marco},
-  booktitle={2023 IEEE 26th International Conference on Intelligent Transportation Systems (ITSC)}, 
-  title={Efficient Learning of Urban Driving Policies Using Bird's-Eye-View State Representations}, 
-  year={2023},
-  pages={4181-4186},
-  doi={10.1109/ITSC57777.2023.10422281}
-  }
-```
-
-## License
-
-[GNU General Public License v3.0 only" (GPL-3.0)](LICENSE.txt) © [raphajaner](https://github.com/raphajaner)
+- 本分支使用简化版奖励函数，仅保留碰撞、超速、车道偏离和红灯违规这四项指标。
+- 训练配置采用 `config_gray_bev_frame.yaml` 文件，确保 `rl.lstm.use` 为 `false`，`rl.image.grayscale` 为 `true`，且 `rl.frame_stack.use` 为 `true`。
+- 输出结果（模型权重、训练日志、回报曲线等）会保存在 outputs 目录，且该目录在 .gitignore 中被忽略，不会提交到仓库。
+- 如有需要，请修改配置文件或奖励函数以满足特定实验要求。

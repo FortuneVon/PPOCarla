@@ -180,7 +180,7 @@ def main(config: DictConfig) -> None:
                 initial_lstm_state = (next_lstm_state[0].clone(), next_lstm_state[1].clone())
 
         # Generate trajectories by interaction with the environment
-        for step in tqdm(range(0, config.rl.num_steps), desc='Data collection', colour='blue'):
+        for step in tqdm(range(0, config.rl.num_steps), desc='Data collection', colour='blue', disable=True):
             global_step += 1 * config.rl.num_envs
             obs[step] = next_obs
             truncateds[step] = next_truncated
@@ -290,7 +290,7 @@ def main(config: DictConfig) -> None:
             batch_size = config.batch_size
             minibatch_size = config.minibatch_size
 
-        for epoch in tqdm(range(config.rl.update_epochs), desc='Training epochs', colour='green'):
+        for epoch in tqdm(range(config.rl.update_epochs), desc='Training epochs', colour='green', disable=True):
             np.random.shuffle(b_inds)
 
             for start in range(0, batch_size, minibatch_size):
