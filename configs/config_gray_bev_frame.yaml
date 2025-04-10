@@ -19,7 +19,8 @@ env:
     main_modality: rgb_bev # rgb_bev / multi_bev / rgb
     size_output_image: 128  # size of the image
 rl:
-  total_timesteps: 1e6  # total timesteps of the experiments
+  # total_timesteps: 1e6  # total timesteps of the experiments
+  total_timesteps: 1e9
   actor:
     fc_arch: [ 256, [ 256, 1 ] ]
   critic:

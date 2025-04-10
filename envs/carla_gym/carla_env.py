@@ -418,11 +418,11 @@ class CarlaEnv(gym.Env):
 
         # 3. Out-of-lane：如果车辆偏离预定车道超过阈值（这里用配置中的 out_lane_thres），则给予 -1 惩罚；否则为 0
         # GET distance from data
-        r_out = -1 if abs(data['dis_to_wps'][1]) > self.params.rl.reward.out_lane_thres else 0
-        # r_out = -abs(data['dis_to_wps'][1])
+        # r_out = -1 if abs(data['dis_to_wps'][1]) > self.params.rl.reward.out_lane_thres else 0
+        # # r_out = -abs(data['dis_to_wps'][1])
         
         # 4. Red-light violation
-        r_red_light = -1 if data['run_red_light'][1] else 0
+        # r_red_light = -1 if data['run_red_light'][1] else 0
 
         # 5. Longitudinal velocity
         vel_lon = data['ego_state'][1]['ego_vel_in_ego'][0]
@@ -440,29 +440,29 @@ class CarlaEnv(gym.Env):
         reward_coll = self.params.rl.reward.collision * r_collision
         reward_vel_long = self.params.rl.reward.vel_lon * vel_lon
         reward_speed = self.params.rl.reward.speeding * r_speeding
-        reward_ool = self.params.rl.reward.oo_lane * r_out
+        # reward_ool = self.params.rl.reward.oo_lane * r_out
         #reward_steer = self.params.rl.reward.steer * r_steer
         #reward_lat_acc = self.params.rl.reward.lat_acc * r_lat
         #reward_speed_dev = self.params.rl.reward.speed_dev * r_speed_dev
-        reward_red_light = self.params.rl.reward.red_light * r_red_light
+        # reward_red_light = self.params.rl.reward.red_light * r_red_light
         
         # Doesn't make sense since we're not having a goal state
         #reward_r_step = - self.params.rl.reward.reward_r_step
-        reward = reward_coll + reward_speed + reward_ool + reward_vel_long 
-            # + reward_speed_dev + reward_steer + reward_lat_acc + reward_r_step
+        reward = reward_coll + reward_speed +  reward_vel_long 
+            # + reward_speed_dev + reward_steer + reward_lat_acc + reward_r_step+ reward_ool +
 
-        if not self.params.rl.reward.no_traffic_lights:
-            reward += reward_red_light
+        # if not self.params.rl.reward.no_traffic_lights:
+            # reward += reward_red_light
 
         reward_comp = {
             'reward_coll': reward_coll,
             'reward_vel_long': reward_vel_long,
             'reward_speed': reward_speed,
             # 'reward_speed_dev': reward_speed_dev,
-            'reward_ool': reward_ool,
+            # 'reward_ool': reward_ool,
             # 'reward_steer': reward_steer,
             # 'reward_lat_acc': reward_lat_acc,
-            'reward_red_light': reward_red_light * (not self.params.rl.reward.no_traffic_lights),
+            # 'reward_red_light': reward_red_light * (not self.params.rl.reward.no_traffic_lights),
             'reward': reward,
         }
         #if reward_steer > 10:
