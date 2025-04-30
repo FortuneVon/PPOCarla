@@ -136,3 +136,5 @@ echo "llama.cpp/" >> .gitignore
 # outputs/2025-04-02/17-45-27/
 # outputs/2025-04-02/17-50-20/
 # outputs/2025-04-02/18-02-21/
+Llama-3.1-8B-Instruct/
+llama.cpp/
