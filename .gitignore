@@ -125,6 +125,10 @@ envs/LICENSE
 # 忽略 outputs 目录中所有生成的文件和子目录
 outputs/
 
+echo "Llama-3.1-8B-Instruct/" >> .gitignore
+echo "llama.cpp/" >> .gitignore
+
+
 # 如果你只希望忽略特定日期的目录，也可以写具体路径，例如：
 # outputs/2025-03-30/
 # outputs/2025-04-02/17-36-19/
