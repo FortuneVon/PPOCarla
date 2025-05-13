@@ -10,6 +10,16 @@ setup:
   device_learning: 'cuda:0' # 'cuda:0' / 'cpu'
   host_gpus: [ 0 ] # single-gpu [0]
   docker_base_port: 56000
+  load_checkpoint:
+    use: false  # 初次训练，一定是 false！
+    # use: true
+    # dir: outputs/2025-05-01/23-31-02/wandb/run-20250501_233103-lz2giihw/files
+    # # outputs/2025-05-01/23-31-02/wandb/run-20250501_233103-lz2giihw/files/agent_llm_256000.pt
+    # model_name: agent_llm_256000.pt
+llm:
+  use: false
+  # use: true
+  # reward_update_freq: 2000
 viz:
   render_off_screen: true # pygame + carla rendering offscreen
   pygame_rendering: false # pygame rendering

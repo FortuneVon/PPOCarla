@@ -69,7 +69,8 @@ class BaseAgent(nn.Module):
             dist: Distribution
         """
         std = torch.exp(logstd)
-        dist = self.dist_head(mean, std, min=self.min_max_dist[0], max=self.min_max_dist[1], upscale=self.upscale_tanh)
+        # dist = self.dist_head(mean, std, min=self.min_max_dist[0], max=self.min_max_dist[1], upscale=self.upscale_tanh)
+        dist = self.dist_head(mean, std, low=self.min_max_dist[0], high=self.min_max_dist[1], upscale=self.upscale_tanh)
         return dist
 
     def get_features(self, x, hidden_state=False, done=None):

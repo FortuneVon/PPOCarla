@@ -15,6 +15,10 @@ from omegaconf import DictConfig, OmegaConf
 from utils.maker import *
 from utils.evaluation import Evaluator
 import wandb
+from LLM_Modifier.llm_reward_modifier import LLMRewardEnhancer
+import importlib
+import os
+import glob
 
 # Global variables
 envs = None
@@ -66,6 +70,7 @@ def main(config: DictConfig) -> None:
         save_code=True,
         tags=[wandb_tag]
     )
+    
 
     # Make gym env(s)
     global envs
@@ -118,13 +123,32 @@ def main(config: DictConfig) -> None:
         # fused=True  # potential speedup but new
     )
     if config.setup.load_checkpoint.use:
-        data = torch.load(f'{config.setup.load_checkpoint.dir}/agent.pt', map_location='cuda:0')
+        model_name = config.setup.load_checkpoint.get("model_name", None)
+
+        if model_name is not None:
+            checkpoint_path = os.path.join(config.setup.load_checkpoint.dir, model_name)
+            print(f"✅ 使用指定断点模型: {checkpoint_path}")
+        else:
+            # 自动查找最新的 agent_llm_*.pt 文件
+            pt_files = glob.glob(os.path.join(config.setup.load_checkpoint.dir, "agent_llm_*.pt"))
+            if not pt_files:
+                raise FileNotFoundError("找不到任何 agent_llm_*.pt 文件，请检查目录或手动设置 model_name")
+            pt_files.sort(key=lambda x: int(re.search(r"agent_llm_(\d+).pt", x).group(1)))
+            checkpoint_path = pt_files[-1]
+            print(f"✅ 自动加载最新断点模型: {os.path.basename(checkpoint_path)}")
+
+        print(f"🔁 加载断点模型: {checkpoint_path}")
+        data = torch.load(checkpoint_path, map_location='cuda:0', weights_only=False)
         agent.load_state_dict(data['model_state_dict'])
         optimizer.load_state_dict(data['optimizer_state_dict'])
         evaluator.envs.set_obs_rms(data['obs_rms'])
-        epoch_start = data['epoch']
+        epoch_start = data.get('update', 0) + 1
+        global_step = data.get('global_step', 0)
+        print(f"🔢 global_step 起始于 checkpoint: {global_step}")
+        wandb.log({'others/start_global_step': global_step})  # ✅ 加在这里
     else:
         epoch_start = 1
+        
 
     # ALGO Logic: Storage setup
     obs = TensorDict({}, [config.rl.num_steps, config.rl.num_envs], device=device)
@@ -161,7 +185,11 @@ def main(config: DictConfig) -> None:
             eta_min=config.rl.anneal_lr_factor * optimizer.param_groups[0]["lr"]
         )
 
-    for update in tqdm(range(epoch_start, config.num_updates + 1), desc='Update steps', colour='yellow'):
+    # ====== LLM 配置提取 ======
+    llm_use = config.get("llm", {}).get("use", False)
+    llm_update_freq = config.get("llm", {}).get("reward_update_freq", 1000)
+
+    for update in tqdm(range(epoch_start, config.num_updates + 1), desc='Update steps', colour='yellow', disable=True):
 
         if config.env.wrapper.block_updates:
             if update > config.env.wrapper.block_after_n_updates:
@@ -418,10 +446,76 @@ def main(config: DictConfig) -> None:
         })
 
         start_time_rel = current_time
-        if update % config.eval.freq == 0 and update > 0 or update == config.num_updates:
-            infractions_over_distance, ego_vel = evaluator(agent, action_mode=config.eval.mode,
-                                                           n_steps=config.eval.n_steps,
-                                                           global_step=global_step)
+        
+        if (update % config.eval.freq == 0 and update > 0) or update == config.num_updates:
+            print(f"🧪 第 {update} 次 update - 触发 Evaluation，当前 global_step: {global_step}")
+            
+            infractions_over_distance, ego_vel = evaluator(
+                agent,
+                action_mode=config.eval.mode,
+                n_steps=config.eval.n_steps,
+                global_step=global_step
+            )
+            
+            # ====== LLM 奖励函数更新逻辑 ======
+            llm_trigger_round = update // config.eval.freq
+            if llm_use and llm_trigger_round > 0 and llm_trigger_round % llm_update_freq == 0:
+                print("🚨 触发 LLM 修改奖励函数操作...")
+
+                # ✅ ✅ 正确初始化
+                llm_enhancer = LLMRewardEnhancer(local_path=True)
+
+                reward_file = os.path.join("envs", "carla_gym", "carla_env.py")
+                with open(reward_file, "r", encoding="utf-8") as f:
+                    current_code = f.read()
+
+                prompt = (
+                    f"Evaluation metrics: infractions = {infractions_over_distance:.6f}, "
+                    f"ego_vel = {ego_vel:.4f}, global_step = {global_step}.\n"
+                    f"The current _get_reward function code is:\n"
+                    f"{current_code}\n"
+                    "Please help redesign the `_get_reward` function to better guide the vehicle's behavior in the CARLA simulator.\n"
+                        "Your design should focus on the following high-level goals:\n"
+                        "1. Route-following: Encourage the ego vehicle to stay on the planned route and avoid deviating from the lane.\n"
+                        "2. Safe driving: Penalize collisions with other cars or pedestrians, and red-light violations.\n"
+                        "3. Efficient driving: Encourage higher longitudinal speed (only when it's safe) and reduce erratic control behavior.\n\n"
+                        "The function should include well-weighted reward terms for:\n"
+                        "- staying in lane (e.g., low `dis_to_wps`)\n"
+                        "- avoiding collisions\n"
+                        "- avoiding red-light violations\n"
+                        "- avoiding speeding\n"
+                        "- maintaining smooth and safe longitudinal velocity\n"
+                        "- (optional) penalizing sharp steering or lateral acceleration\n\n"
+                        "Return only the new Python code for `_get_reward(self, data)`.\n"
+                        "Keep it consistent with the existing CARLA environment and `self.params.rl.reward` config keys where possible."
+                    )
+
+                new_reward_code = llm_enhancer.generate_reward_function_suggestion(prompt)
+
+                print("======= 💡 LLM 建议的新 reward 函数如下 =======")
+                print(new_reward_code)
+
+                # 保存 LLM 推荐的新 reward 函数
+                llm_code_path = os.path.join(wandb.run.dir, f"llm_reward_step_{global_step}.py")
+                with open(llm_code_path, "w", encoding="utf-8") as f:
+                    f.write(new_reward_code)
+
+                print(f"✅ 已保存建议 reward 函数至: {llm_code_path}")
+
+                # 保存断点模型
+                checkpoint_path = os.path.join(wandb.run.dir, f"agent_llm_{global_step}.pt")
+                torch.save({
+                    'update': update,
+                    'global_step': global_step,
+                    'model_state_dict': agent.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict() if optimizer is not None else None,
+                    'obs_rms': envs.get_obs_rms(),
+                }, checkpoint_path)
+
+                print(f"💾 已保存断点模型至: {checkpoint_path}")
+                print("🛑 程序将退出，请你手动修改 carla_env.py 中的 reward 函数，并重新运行训练脚本继续。")
+                exit(0)
+                
             if ego_vel > 1.0 and (
                     (infractions_over_distance < best_infractions_over_distance)
                     or (np.abs(infractions_over_distance - best_infractions_over_distance) / (
@@ -450,20 +544,6 @@ def main(config: DictConfig) -> None:
             next_terminated = torch.zeros(config.rl.num_envs, device=device, dtype=torch.bool)
             next_truncated = torch.zeros(config.rl.num_envs, device=device, dtype=torch.bool)
             next_done = torch.zeros(config.rl.num_envs, device=device, dtype=torch.bool)
-
-            # # Save current agent to disk
-            # torch.save(
-            #     {
-            #         'update': update,
-            #         'model_state_dict': agent.state_dict(),
-            #         'optimizer_state_dict': optimizer.state_dict() if optimizer is not None else None,
-            #         'loss': loss,
-            #         'obs_rms': envs.get_obs_rms()
-            #     },
-            #     f'{wandb.run.dir}/agent_{global_step}.pt'
-            # )
-            # # Sync torch models immediately when written to wandb.run.dir
-            # wandb.save("*.pt")
 
     # Evaluation of the best agent (saved to disk)
     agent.load_state_dict(best_weights)

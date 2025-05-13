@@ -18,15 +18,15 @@ setup:
   device_learning: 'cuda:0' # 'cuda:0' / 'cpu'
   timeout: 30
   retries_on_error: 2
-  load_checkpoint:
-    use: false
-    dir: ""
   host_gpus: [ 0 ] # single-gpu [0]
   docker_gpu: 0
   docker_base_port: 56020
   docker_carla_wait: 40
   gpu_used_thresh_factor: 0.8
   carla_mem_instance_size: 5500 # mib allocated for one CARLA instance
+  load_checkpoint:
+    use: false
+    # dir: /home/fortune/PPOCarla/outputs/2025-04-17/20-12-52/wandb/run-20250417_201252-ach4ayyo/files
 viz:
   render_off_screen: false # pygame + carla rendering offscreen
   pygame_rendering: true # pygame rendering
@@ -152,3 +152,7 @@ eval:
   freq: 50
   n_steps: 4096
   mode: false  # If true, uses the distribution's mode instead of sampling
+
+llm:
+  use: true
+  # reward_update_freq: 5

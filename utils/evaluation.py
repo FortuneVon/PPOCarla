@@ -3,6 +3,12 @@ from tensordict import TensorDict
 import torch
 import wandb
 from copy import deepcopy
+import inspect
+from envs.carla_gym.carla_env import CarlaEnv
+from LLM_Modifier.llm_reward_modifier import LLMRewardEnhancer
+import re
+from pathlib import Path
+
 
 
 class RolloutRecording:
@@ -11,6 +17,8 @@ class RolloutRecording:
         self.h = []
         # Dict tracing the history of the current episode
         self.current_h = self._init_dict()
+        # 用来存储最近几次 eval 的关键指标
+        self.eval_history = []
 
     @staticmethod
     def _init_dict():
@@ -19,11 +27,11 @@ class RolloutRecording:
             reward_coll=[],
             reward_vel_long=[],
             reward_speed=[],
-            # reward_speed_dev=[],
-            # reward_ool=[],
-            # reward_steer=[],
-            # reward_lat_acc=[],
-            # reward_red_light=[],
+            reward_speed_dev=[],
+            reward_ool=[],
+            reward_steer=[],
+            reward_lat_acc=[],
+            reward_red_light=[],
             collision=[],
             ped_collision=[],
             car_collision=[],
@@ -36,20 +44,21 @@ class RolloutRecording:
                reward_coll, 
                reward_vel_long, 
                reward_speed, 
-               #reward_speed_dev, 
-                #    reward_ool, 
-               #reward_steer, reward_lat_acc,
-            #    reward_red_light, 
+               reward_speed_dev,
+               reward_ool, 
+               reward_steer, 
+               reward_lat_acc,
+               reward_red_light, 
                collision, ped_collision, car_collision, run_red_light, ego_state, distance_travelled):
         if reward is not None:
             self.current_h['reward'].append(reward)
             self.current_h['reward_coll'].append(reward_coll)
             self.current_h['reward_vel_long'].append(reward_vel_long)
             self.current_h['reward_speed'].append(reward_speed)
-            #self.current_h['reward_speed_dev'].append(reward_speed_dev)
-            # self.current_h['reward_ool'].append(reward_ool)
-            #self.current_h['reward_steer'].append(reward_steer)
-            #self.current_h['reward_lat_acc'].append(reward_lat_acc)
+            self.current_h['reward_speed_dev'].append(reward_speed_dev)
+            self.current_h['reward_ool'].append(reward_ool)
+            self.current_h['reward_steer'].append(reward_steer)
+            self.current_h['reward_lat_acc'].append(reward_lat_acc)
 
         self.current_h['collision'].append(collision)
         self.current_h['ped_collision'].append(ped_collision)
@@ -68,6 +77,8 @@ class Evaluator:
     def __init__(self, config, envs, writer=None) -> None:
         self.config = config
         self.envs = envs.env
+        self.eval_history = []
+
 
     @torch.inference_mode()
     def __call__(self, agent, n_steps, action_mode, global_step=0, name='eval'):
@@ -91,11 +102,11 @@ class Evaluator:
         reward_coll = np.mean([np.mean(h_['reward_coll']) for h in history for h_ in h.h])
         reward_vel_long = np.mean([np.mean(h_['reward_vel_long']) for h in history for h_ in h.h])
         reward_speed = np.mean([np.mean(h_['reward_speed']) for h in history for h_ in h.h])
-        #reward_speed_dev = np.mean([np.mean(h_['reward_speed_dev']) for h in history for h_ in h.h])
-        # reward_ool = np.mean([np.mean(h_['reward_ool']) for h in history for h_ in h.h])
-        #reward_steer = np.mean([np.mean(h_['reward_steer']) for h in history for h_ in h.h])
-        #reward_lat_acc = np.mean([np.mean(h_['reward_lat_acc']) for h in history for h_ in h.h])
-        # reward_red_light = np.mean([np.mean(h_['reward_red_light']) for h in history for h_ in h.h])
+        reward_speed_dev = np.mean([np.mean(h_['reward_speed_dev']) for h in history for h_ in h.h])
+        reward_ool = np.mean([np.mean(h_['reward_ool']) for h in history for h_ in h.h])
+        reward_steer = np.mean([np.mean(h_['reward_steer']) for h in history for h_ in h.h])
+        reward_lat_acc = np.mean([np.mean(h_['reward_lat_acc']) for h in history for h_ in h.h])
+        reward_red_light = np.mean([np.mean(h_['reward_red_light']) for h in history for h_ in h.h])
 
         collision = np.sum([np.sum(h_['collision']) for h in history for h_ in h.h])
         ped_collision = np.sum([np.sum(h_['ped_collision']) for h in history for h_ in h.h])
@@ -146,11 +157,11 @@ class Evaluator:
             f"{name}/reward_coll": reward_coll,
             f"{name}/reward_vel_long": reward_vel_long,
             f"{name}/reward_speed": reward_speed,
-            #f"{name}/reward_speed_dev": reward_speed_dev,
-            # f"{name}/reward_ool": reward_ool,
-            #f"{name}/reward_steer": reward_steer,
-            #f"{name}/reward_lat_acc": reward_lat_acc,
-            # f"{name}/reward_red_light": reward_red_light,
+            f"{name}/reward_speed_dev": reward_speed_dev,
+            f"{name}/reward_ool": reward_ool,
+            f"{name}/reward_steer": reward_steer,
+            f"{name}/reward_lat_acc": reward_lat_acc,
+            f"{name}/reward_red_light": reward_red_light,
             f"{name}/collision": collision,
             f"{name}/ped_collision": ped_collision,
             f"{name}/car_collision": car_collision,
@@ -166,7 +177,17 @@ class Evaluator:
             f"{name}/red_lights_over_distance": red_lights_over_distance,
             f"{name}/infractions_over_distance": infractions_over_distance,
         })
+        
         return infractions_over_distance, ego_vel
+    
+    def _read_reward_code(self) -> str:
+        """
+        读取并返回当前 _get_reward 方法的源码字符串，
+        以便把它发给 LLM 做代码分析/修改建议。
+        """
+        # 通过 inspect 拿到类方法定义
+        source = inspect.getsource(CarlaEnv._get_reward)
+        return source
 
 
 @torch.inference_mode()
@@ -207,11 +228,11 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                         infos['final_info'][i]['reward_coll'],
                         infos['final_info'][i]['reward_vel_long'],
                         infos['final_info'][i]['reward_speed'],
-                        #infos['final_info'][i]['reward_speed_dev'],
-                        # infos['final_info'][i]['reward_ool'],
-                        #infos['final_info'][i]['reward_steer'],
-                        #infos['final_info'][i]['reward_lat_acc'],
-                        # infos['final_info'][i]['reward_red_light'],
+                        infos['final_info'][i]['reward_speed_dev'],
+                        infos['final_info'][i]['reward_ool'],
+                        infos['final_info'][i]['reward_steer'],
+                        infos['final_info'][i]['reward_lat_acc'],
+                        infos['final_info'][i]['reward_red_light'],
                         infos['final_info'][i]['collision'],
                         infos['final_info'][i]['ped_collision'],
                         infos['final_info'][i]['car_collision'],
@@ -227,11 +248,11 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                         infos['reward_coll'][i],
                         infos['reward_vel_long'][i],
                         infos['reward_speed'][i],
-                        #infos['reward_speed_dev'][i],
-                        # infos['reward_ool'][i],
-                        #infos['reward_steer'][i],
-                        #infos['reward_lat_acc'][i],
-                        # infos['reward_red_light'][i],
+                        infos['reward_speed_dev'][i],
+                        infos['reward_ool'][i],
+                        infos['reward_steer'][i],
+                        infos['reward_lat_acc'][i],
+                        infos['reward_red_light'][i],
                         infos['collision'][i],
                         infos['ped_collision'][i],
                         infos['car_collision'][i],
@@ -247,11 +268,11 @@ def vec_rollout(config, envs, agent, n_steps, action_mode=True):
                     infos['reward_coll'][i],
                     infos['reward_vel_long'][i],
                     infos['reward_speed'][i],
-                    #infos['reward_speed_dev'][i],
-                    # infos['reward_ool'][i],
-                    #infos['reward_steer'][i],
-                    #infos['reward_lat_acc'][i],
-                    # infos['reward_red_light'][i],
+                    infos['reward_speed_dev'][i],
+                    infos['reward_ool'][i],
+                    infos['reward_steer'][i],
+                    infos['reward_lat_acc'][i],
+                    infos['reward_red_light'][i],
                     infos['collision'][i],
                     infos['ped_collision'][i],
                     infos['car_collision'][i],

@@ -1,4 +1,50 @@
 # PPOCarla 项目
+每次 LLM 建议后要做的操作
+# step 0：确保你知道当前 global_step，例如 12800
+GLOBAL_STEP=12800
+
+# step 1：替换 reward 函数
+python tools/replace_reward.py \
+  --target_file envs/carla_gym/carla_env.py \
+  --new_reward_file outputs/YYYY-MM-DD/HH-MM-SS/wandb/run-.../llm_reward_step_${GLOBAL_STEP}.py
+
+# step 2：同步更新 evaluation.py 中所有 reward 相关的字段（见上方列表）
+
+# step 3：记录 reward 版本
+echo "| ${GLOBAL_STEP} | agent_llm_${GLOBAL_STEP}.pt | llm_reward_step_${GLOBAL_STEP}.py | 改动描述 |" >> logs/reward_log.md
+
+# step 4：修改 config 以加载 checkpoint（只需要改 `config_gray_bev_frame.yaml`）
+# 搜索并修改：
+setup:
+  load_checkpoint:
+    use: true
+    dir: /完整路径/outputs/YYYY-MM-DD/HH-MM-SS/wandb/run-.../files
+    model_name: agent_llm_${GLOBAL_STEP}.pt
+
+# step 5：重新运行
+bash run.sh
+
+涉及的文件：
+config_gray_bev_frame.yaml,carla_env.py,evaluation.py,training.py
+
+流程图：
+┌────────────┐
+│ LLM 触发   │
+└────┬───────┘
+     ↓
+📌 保存新 reward -> llm_reward_step_XXXX.py
+📌 保存模型      -> agent_llm_XXXX.pt
+
+📝 修改 config:
+ - setup.load_checkpoint.use = true
+ - setup.load_checkpoint.dir, model_name 设置为最新 pt
+
+📦 替换 carla_env.py 中的 _get_reward()
+🔧 同步修改 evaluation.py 中所有 reward_component 相关字段
+
+📁 记录到 logs/reward_log.md
+🚀 bash run.sh 重启训练（自动接续 global_step）
+
 
 ## 项目简介
 
